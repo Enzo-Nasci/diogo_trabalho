@@ -18,7 +18,7 @@ public class ProdutoController {
 
     @GetMapping()
     public ResponseEntity<CompraDTO> getMethodName(@RequestParam String nome,
-        @RequestParam int quantidade
+        @RequestParam double quantidade
     ) {
         Product product;
         switch (nome) {
@@ -35,7 +35,7 @@ public class ProdutoController {
                 throw new AssertionError("Nome do produto errado");
             }
             
-        ProdutosService produtosService = new ProdutosService(product, quantidade);
+        ProdutosService produtosService = new ProdutosService(product,quantidade);
         
         boolean desconto = produtosService.makeDiscount();
         double preco = product.getPreco();

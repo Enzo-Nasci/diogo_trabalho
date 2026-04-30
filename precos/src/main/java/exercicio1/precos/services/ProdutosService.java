@@ -5,23 +5,18 @@ import lombok.Getter;
 @Getter
 public class ProdutosService {
     private final Product products;
-    private final int quantity;
+    private final double quantity;
 
-    public ProdutosService(Product products,int quantity){
+    public ProdutosService(Product products,double quantity){
         this.products = products;
-        if (quantity<=0){
+        if (quantity<=0.0){
             throw new IllegalArgumentException("Quantidade deve ser valida");
         }
             this.quantity = quantity;
     }
 
     public boolean makeDiscount(){
-        if (this.quantity >=10){
-            return true;
-        }
-        else{
-            return false;
-        }
+        return this.quantity >=10.0;
     }
 
 

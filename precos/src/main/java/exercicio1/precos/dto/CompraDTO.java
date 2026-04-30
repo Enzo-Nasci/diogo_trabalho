@@ -7,7 +7,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public class CompraDTO {
     private String produto;
-    private int quantidade;
+    private double quantidade;
     private double preco;
     private boolean desconto;
     private double total;

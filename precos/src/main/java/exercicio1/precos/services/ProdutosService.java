@@ -9,21 +9,24 @@ public class ProdutosService {
 
     public ProdutosService(Product products,int quantity){
         this.products = products;
-        this.quantity = quantity;
+        if (quantity<=0){
+            throw new IllegalArgumentException("Quantidade deve ser valida");
+        }
+            this.quantity = quantity;
     }
 
-    public double makeDiscount(){
+    public boolean makeDiscount(){
         if (this.quantity >=10){
-            return 1.05;
+            return true;
         }
         else{
-            return 1.0;
+            return false;
         }
     }
 
 
     public double totalPrice(){
-        return this.products.getPreco()*this.quantity*makeDiscount();
+        return makeDiscount()?this.products.getPreco()*this.quantity*0.95:this.products.getPreco()*this.quantity*1.0;
     }
 
 

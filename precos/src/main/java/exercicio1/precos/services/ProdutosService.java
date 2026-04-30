@@ -14,11 +14,16 @@ public class ProdutosService {
 
     public double makeDiscount(){
         if (this.quantity >=10){
-            return this.products.getPreco() * 0.95;
+            return 1.05;
         }
         else{
-            return this.products.getPreco();
+            return 1.0;
         }
+    }
+
+
+    public double totalPrice(){
+        return this.products.getPreco()*this.quantity*makeDiscount();
     }
 
 

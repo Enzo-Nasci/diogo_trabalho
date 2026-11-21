@@ -12,11 +12,17 @@ import exercicio1.precos.services.ProdutosService;
 
 
 @RestController
-@RequestMapping("/compra")
+@RequestMapping()
 public class ProdutoController {
 
+    @GetMapping("/health")
+    public ResponseEntity<Void> healthCheck() {
+        return ResponseEntity.ok().build();
+    }
 
-    @GetMapping()
+
+
+    @GetMapping("/compra")
     public ResponseEntity<CompraDTO> getMethodName(@RequestParam String nome,
         @RequestParam double quantidade
     ) {

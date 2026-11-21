@@ -65,19 +65,13 @@ jobs:
           docker push "${image}"
           echo "name=${image}" >> "${GITHUB_OUTPUT}"
 
-      - name: Deploy da imagem do backend no Render
+      - name: Deploy do backend no Render
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-          PRECOS_IMAGE: ${{ steps.imagem.outputs.name }}
         run: |
           set -euo pipefail
           if [ -z "${RENDER_DEPLOY_HOOK_URL}" ]; then
             echo "::error::Secret RENDER_DEPLOY_HOOK_URL ausente. A imagem do backend já foi publicada no GHCR. Crie o Web Service e o secret como está em PASSOS.md e rode o job de novo."
             exit 1
           fi
-          encoded="$(python3 -c 'import urllib.parse,os; print(urllib.parse.quote(os.environ["PRECOS_IMAGE"], safe=""))')"
-          case "${RENDER_DEPLOY_HOOK_URL}" in
-            *\?*) sep='&' ;;
-            *) sep='?' ;;
-          esac
-          curl --fail-with-body --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}${sep}imgURL=${encoded}"
+          curl --fail-with-body --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}"

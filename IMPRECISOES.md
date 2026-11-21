@@ -1,46 +1,42 @@
 # Imprecisões do CI/CD como está agora
 
-O manifesto Kubernetes e a imagem de Postgres saíram do pipeline. O backend não tem banco: o `pom.xml` não declara JPA nem driver PostgreSQL, e `application.properties` só tem `spring.application.name=precos`. Os preços ficam no enum `Product`. O CD constrói e publica somente `precos/Dockerfile`, e o deploy no Render é um POST no deploy hook com essa imagem.
+O manifesto Kubernetes e a imagem de Postgres saíram do pipeline. O backend não tem banco: o `pom.xml` não declara JPA nem driver PostgreSQL, e os preços ficam no enum `Product`. O CD constrói `precos/Dockerfile`, publica essa imagem no GHCR e pede o deploy no Render com um POST no deploy hook, sem `imgURL`.
 
-O que segue ainda impede o endereço público de funcionar só com o que está no Git. Nenhuma dessas correções foi aplicada no código da aplicação.
+O serviço no Render é ambiente Docker. Enviar `imgURL` nesse hook devolve HTTP 400: `docker environment does not support image URLs`. O workflow não envia mais esse parâmetro. O Render constrói o Dockerfile do repositório. A imagem do GHCR não é a que ele executa.
 
-## 1. O deploy hook ainda não existe
+`application.properties` já tem `server.port=${PORT:8080}` e o controller já expõe `GET /health`.
 
-O passo “Deploy da imagem do backend no Render” lê `secrets.RENDER_DEPLOY_HOOK_URL`. Sem esse secret o job termina vermelho depois de publicar a imagem no GHCR. O workflow não cria o Web Service: isso é feito no painel do Render.
+## 1. O Dockerfile do Render tem de ser o do módulo
 
-**Como resolver:** seguir `PASSOS.md` (serviço Docker a partir de `ghcr.io/<owner>/precos`, Auto-Deploy desligado, secret no GitHub, rodar o job de novo). O `imgURL` que o workflow envia precisa ser a mesma imagem configurada no serviço, mudando só a tag. Se o serviço estiver apontando para outro nome, o Render recusa o deploy.
+O `Dockerfile` está em `precos/Dockerfile`, não na raiz. Se o serviço Docker procurar o arquivo na raiz, o build do hook não acha o backend.
 
-## 2. A aplicação não escuta a porta do Render
+**Como resolver:** em Settings, Dockerfile Path = `precos/Dockerfile`. Health Check Path = `/health`.
 
-O Dockerfile faz `EXPOSE 8080`. Sem `server.port`, o Spring Boot sobe em 8080. O Render injeta `PORT` (em geral 10000) e o proxy fala com essa porta. A imagem sobe e o serviço não recebe tráfego.
+## 2. O secret do hook continua obrigatório
 
-**Como resolver:** em `precos/src/main/resources/application.properties`, acrescentar `server.port=${PORT:8080}`. Localmente, sem a variável `PORT`, continua 8080.
+O passo de deploy lê `secrets.RENDER_DEPLOY_HOOK_URL`. Sem ele o job termina vermelho depois de publicar a imagem no GHCR.
 
-## 3. Não há rota de health
+**Como resolver:** copiar o Deploy Hook em Settings e gravar no GitHub com esse nome. Não colocar `imgURL` na URL.
 
-O único endpoint é `GET /compra`, e ele exige `nome` e `quantidade`. O health check padrão do Render bate em `/` e recebe 404, então o deploy pode ser marcado como falho.
-
-**Como resolver:** uma rota que responda 200 sem parâmetros, por exemplo `GET /health`, e configurar esse path como Health Check Path do serviço. O teste funcional do negócio continua sendo `/compra?nome=frango&quantidade=2`.
-
-## 4. O CI não exercita a regra de negócio
+## 3. O CI não exercita a regra de negócio
 
 `./mvnw -B test` executa só `PrecosApplicationTests.contextLoads`. Desconto a partir de 10 unidades, quantidade inválida e nome inválido não têm teste. O build da imagem usa `-DskipTests`, então o CD não recupera essa lacuna.
 
 **Como resolver:** testes de `ProdutosService` e do controller. Não criei esses testes.
 
-## 5. A imagem no GHCR nasce privada
+## 4. A imagem no GHCR nasce privada
 
-O `docker push` usa o `GITHUB_TOKEN` do job (`packages: write`). O pacote fica privado. O Render não puxa essa imagem sem credencial de registry, e o token do job acaba quando o workflow termina.
+O `docker push` usa o `GITHUB_TOKEN` do job (`packages: write`). O pacote fica privado. O serviço Docker do Render não puxa esse pacote, então isso não causa o 400. Passa a importar só se alguém for baixar `ghcr.io/<owner>/precos` de fora do workflow.
 
-**Como resolver:** no pacote do GitHub, deixar a imagem pública, ou no serviço do Render informar um PAT com `read:packages`. O passo a passo está em `PASSOS.md`.
+**Como resolver:** deixar o pacote público, ou usar um PAT com `read:packages`, se essa imagem for usada fora do Actions.
 
-## 6. Dois deploys se o Auto-Deploy do Render estiver em On Commit
+## 5. Auto-Deploy em serviço ligado ao Git
 
-A trava `needs: ci` vale para o job `cd`. Se o Web Service estiver com Auto-Deploy “On Commit”, o push na `main` também publica direto pelo Render, antes do CI deste workflow.
+Este serviço está ligado ao repositório, então Auto-Deploy pode aparecer em Settings. Em On Commit, o push na `main` publica pelo Render em paralelo com o job `cd`, antes do CI. A trava `needs: ci` vale só para o workflow.
 
-**Como resolver:** Auto-Deploy Off, e só o job `cd` chama o hook. A alternativa “After CI Checks Pass” também espera o CI, mas aí o workflow não deve disparar um segundo deploy.
+**Como resolver:** Auto-Deploy Off. Só o POST do job `cd` dispara o build.
 
-## 7. O Actions só lê `.github` na raiz do repositório
+## 6. O Actions só lê `.github` na raiz do repositório
 
 O workflow está em `.github/workflows/ci-cd.yml`, ao lado da pasta `precos/`. Se o remoto no GitHub tiver só o conteúdo de `precos/` como raiz, o Actions ignora o arquivo.
 

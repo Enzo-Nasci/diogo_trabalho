@@ -107,25 +107,19 @@ O job `cd` constrói `precos/Dockerfile` e publica em `ghcr.io/<owner>/precos:<s
 
 `--platform linux/amd64` segue o que o Render executa nos serviços Docker. O Dockerfile compila com JDK 17 e sobe o jar com JRE 17. O `package` da imagem usa `-DskipTests` porque essa imagem só é construída no job que já depende do CI verde. O teste fica no job `ci`.
 
-Não existe segundo `docker build` nem `docker push` de Postgres. O passo de deploy manda para o Render somente o nome gravado em `steps.imagem.outputs.name`:
+Não existe segundo `docker build` nem `docker push` de Postgres. O deploy no Render é um POST no deploy hook, sem `imgURL`:
 
-```68:83:.github/workflows/ci-cd.yml
-      - name: Deploy da imagem do backend no Render
+```68:77:.github/workflows/ci-cd.yml
+      - name: Deploy do backend no Render
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-          PRECOS_IMAGE: ${{ steps.imagem.outputs.name }}
         run: |
           set -euo pipefail
           if [ -z "${RENDER_DEPLOY_HOOK_URL}" ]; then
             echo "::error::Secret RENDER_DEPLOY_HOOK_URL ausente. A imagem do backend já foi publicada no GHCR. Crie o Web Service e o secret como está em PASSOS.md e rode o job de novo."
             exit 1
           fi
-          encoded="$(python3 -c 'import urllib.parse,os; print(urllib.parse.quote(os.environ["PRECOS_IMAGE"], safe=""))')"
-          case "${RENDER_DEPLOY_HOOK_URL}" in
-            *\?*) sep='&' ;;
-            *) sep='?' ;;
-          esac
-          curl --fail-with-body --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}${sep}imgURL=${encoded}"
+          curl --fail-with-body --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}"
 ```
 
-O `imgURL` é a imagem do backend com o SHA daquele commit. O Render troca a tag em relação à imagem configurada no serviço e mantém o mesmo registry e o mesmo nome. O que ainda falta para esse POST ter um serviço no ar está em `PASSOS.md` e em `IMPRECISOES.md`.
+O serviço deste projeto no Render é ambiente Docker. Esse tipo recusa `imgURL` com HTTP 400 e a mensagem `docker environment does not support image URLs`. O hook só pede um novo build do `precos/Dockerfile` que já está configurado no serviço. A publicação no GHCR continua no passo anterior e não é o que o Render executa.
